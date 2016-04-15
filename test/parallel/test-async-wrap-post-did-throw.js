@@ -10,6 +10,8 @@ process.on('uncaughtException', (e) => {
   assert.equal(e.message, 'oh noes!', 'error messages do not match');
 });
 
+
+
 process.on('exit', () => {
   process.removeAllListeners('uncaughtException');
   assert.equal(uncaughtExceptionCount, 1);
