@@ -18,6 +18,7 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
+
 PLATFORM ?= $(shell sh -c 'uname -s | tr "[A-Z]" "[a-z]"')
 HELPER ?=
 BINEXT ?=
