@@ -14,7 +14,7 @@ the module.
 
 ## assert(value[, message])
 
-An alias of [`assert.ok()`][] .
+An alias of [`assert.ok()`][] ..
 
 ```js
 const assert = require('assert');
