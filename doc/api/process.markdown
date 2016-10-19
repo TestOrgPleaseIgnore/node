@@ -26,7 +26,7 @@ checks on the module's state (like for unit tests). The callback takes one
 argument, the code the process is exiting with.
 
 This event is only emitted when Node.js exits explicitly by process.exit() or
-implicitly by the event loop draining.
+implicitly by the event loop draining..
 
 Example of listening for `'exit'`:
 
