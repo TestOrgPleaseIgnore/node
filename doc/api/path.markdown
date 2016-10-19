@@ -3,7 +3,7 @@
     Stability: 2 - Stable
 
 This module contains utilities for handling and transforming file
-paths. The file system is not consulted to check whether paths are valid.
+paths. The file system is not consulted to check whether paths are valid..
 
 Use `require('path')` to use this module.  The following methods are provided:
 
