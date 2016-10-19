@@ -10,7 +10,7 @@ like TCP streams and file system operations.
 
 Now that `TypedArray` has been added in ES6, the `Buffer` class implements the
 `Uint8Array` API in a manner that is more optimized and suitable for Node.js'
-use cases.
+use cases..
 
 Instances of the `Buffer` class are similar to arrays of integers but
 correspond to fixed-sized, raw memory allocations outside the V8 heap.
