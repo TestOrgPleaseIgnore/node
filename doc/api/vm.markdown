@@ -22,7 +22,7 @@ A class for holding precompiled scripts, and running them in specific sandboxes.
 Creating a new `Script` compiles `code` but does not run it. Instead, the
 created `vm.Script` object represents this compiled code. This script can be run
 later many times using methods below. The returned script is not bound to any
-global object. It is bound before each run, just for that run.
+global object. It is bound before each run, just for that run..
 
 The options when creating a script are:
 
