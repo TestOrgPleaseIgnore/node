@@ -1,4 +1,4 @@
-# Node.js
+# N.js
 
 [![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/nodejs/node?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/29/badge)](https://bestpractices.coreinfrastructure.org/projects/29)
 
