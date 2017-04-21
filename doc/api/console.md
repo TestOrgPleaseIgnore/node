@@ -9,9 +9,14 @@ The module exports two specific components:
 
 * A `Console` class with methods such as `console.log()`, `console.error()` and
   `console.warn()` that can be used to write to any Node.js stream.
-* A global `console` instance configured to write to `stdout` and `stderr`.
-  Because this object is global, it can be used without calling
+* A global `console` instance configured to write to [`process.stdout`][] and
+  [`process.stderr`][].  The global `console` can be used without calling
   `require('console')`.
+
+***Warning***: The global console object's methods are neither consistently
+synchronous like the browser APIs they resemble, nor are they consistently
+asynchronous like all other Node.js streams. See the [note on process I/O][] for
+more information.
 
 Example using the global `console`:
 
@@ -47,22 +52,14 @@ myConsole.warn(`Danger ${name}! Danger!`);
 // Prints: Danger Will Robinson! Danger!, to err
 ```
 
-While the API for the `Console` class is designed fundamentally around the
-browser `console` object, the `Console` in Node.js is *not* intended to
-duplicate the browser's functionality exactly.
-
-## Asynchronous vs Synchronous Consoles
-
-The console functions are usually asynchronous unless the destination is a file.
-Disks are fast and operating systems normally employ write-back caching;
-it should be a very rare occurrence indeed that a write blocks, but it
-is possible.
-
-Additionally, console functions are blocking when outputting to TTYs
-(terminals) on OS X as a workaround for the OS's very small, 1kb buffer size.
-This is to prevent interleaving between `stdout` and `stderr`.
-
 ## Class: Console
+<!-- YAML
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/9744
+    description: Errors that occur while writing to the underlying streams
+                 will now be ignored.
+-->
 
 <!--type=class-->
 
@@ -76,10 +73,12 @@ const Console = console.Console;
 ```
 
 ### new Console(stdout[, stderr])
+* `stdout` {Writable}
+* `stderr` {Writable}
 
 Creates a new `Console` by passing one or two writable stream instances.
 `stdout` is a writable stream to print log or info output. `stderr`
-is used for warning or error output. If `stderr` isn't passed, warning and error
+is used for warning or error output. If `stderr` is not passed, warning and error
 output will be sent to `stdout`.
 
 ```js
@@ -88,7 +87,7 @@ const errorOutput = fs.createWriteStream('./stderr.log');
 // custom simple logger
 const logger = new Console(output, errorOutput);
 // use it like console
-var count = 5;
+const count = 5;
 logger.log('count: %d', count);
 // in stdout.log: count 5
 ```
@@ -104,6 +103,9 @@ new Console(process.stdout, process.stderr);
 <!-- YAML
 added: v0.1.101
 -->
+* `value` {any}
+* `message` {any}
+* `...args` {any}
 
 A simple assertion test that verifies whether `value` is truthy. If it is not,
 an `AssertionError` is thrown. If provided, the error `message` is formatted
@@ -135,15 +137,20 @@ the default behavior of `console` in Node.js.
 
 // Creates a simple extension of console with a
 // new impl for assert without monkey-patching.
-const myConsole = Object.setPrototypeOf({
-  assert(assertion, message, ...args) {
-    try {
-      console.assert(assertion, message, ...args);
-    } catch (err) {
-      console.error(err.stack);
-    }
-  }
-}, console);
+const myConsole = Object.create(console, {
+  assert: {
+    value: function assert(assertion, message, ...args) {
+      try {
+        console.assert(assertion, message, ...args);
+      } catch (err) {
+        console.error(err.stack);
+      }
+    },
+    configurable: true,
+    enumerable: true,
+    writable: true,
+  },
+});
 
 module.exports = myConsole;
 ```
@@ -160,6 +167,11 @@ console.log('this will also print');
 <!-- YAML
 added: v0.1.101
 -->
+* `obj` {any}
+* `options` {Object}
+  * `showHidden` {boolean}
+  * `depth` {number}
+  * `colors` {boolean}
 
 Uses [`util.inspect()`][] on `obj` and prints the resulting string to `stdout`.
 This function bypasses any custom `inspect()` function defined on `obj`. An
@@ -181,6 +193,8 @@ Defaults to `false`. Colors are customizable; see
 <!-- YAML
 added: v0.1.100
 -->
+* `data` {any}
+* `...args` {any}
 
 Prints to `stderr` with newline. Multiple arguments can be passed, with the
 first used as the primary message and all additional used as substitution
@@ -203,6 +217,8 @@ values are concatenated. See [`util.format()`][] for more information.
 <!-- YAML
 added: v0.1.100
 -->
+* `data` {any}
+* `...args` {any}
 
 The `console.info()` function is an alias for [`console.log()`][].
 
@@ -210,6 +226,8 @@ The `console.info()` function is an alias for [`console.log()`][].
 <!-- YAML
 added: v0.1.100
 -->
+* `data` {any}
+* `...args` {any}
 
 Prints to `stdout` with newline. Multiple arguments can be passed, with the
 first used as the primary message and all additional used as substitution
@@ -217,7 +235,7 @@ values similar to printf(3) (the arguments are all passed to
 [`util.format()`][]).
 
 ```js
-var count = 5;
+const count = 5;
 console.log('count: %d', count);
 // Prints: count: 5, to stdout
 console.log('count:', count);
@@ -232,6 +250,7 @@ values are concatenated. See [`util.format()`][] for more information.
 <!-- YAML
 added: v0.1.104
 -->
+* `label` {string}
 
 Starts a timer that can be used to compute the duration of an operation. Timers
 are identified by a unique `label`. Use the same `label` when you call
@@ -241,14 +260,20 @@ milliseconds to `stdout`. Timer durations are accurate to the sub-millisecond.
 ### console.timeEnd(label)
 <!-- YAML
 added: v0.1.104
+changes:
+  - version: v6.0.0
+    pr-url: https://github.com/nodejs/node/pull/5901
+    description: This method no longer supports multiple calls that don’t map
+                 to individual `console.time()` calls; see below for details.
 -->
+* `label` {string}
 
 Stops a timer that was previously started by calling [`console.time()`][] and
 prints the result to `stdout`:
 
 ```js
 console.time('100-elements');
-for (var i = 0; i < 100; i++) {
+for (let i = 0; i < 100; i++) {
   ;
 }
 console.timeEnd('100-elements');
@@ -260,10 +285,12 @@ leaking it. On older versions, the timer persisted. This allowed
 `console.timeEnd()` to be called multiple times for the same label. This
 functionality was unintended and is no longer supported.*
 
-### console.trace(message[, ...args])
+### console.trace([message][, ...args])
 <!-- YAML
 added: v0.1.104
 -->
+* `message` {any}
+* `...args` {any}
 
 Prints to `stderr` the string `'Trace :'`, followed by the [`util.format()`][]
 formatted message and stack trace to the current position in the code.
@@ -288,6 +315,8 @@ console.trace('Show me');
 <!-- YAML
 added: v0.1.100
 -->
+* `data` {any}
+* `...args` {any}
 
 The `console.warn()` function is an alias for [`console.error()`][].
 
@@ -300,4 +329,5 @@ The `console.warn()` function is an alias for [`console.error()`][].
 [`util.format()`]: util.html#util_util_format_format_args
 [`util.inspect()`]: util.html#util_util_inspect_object_options
 [customizing `util.inspect()` colors]: util.html#util_customizing_util_inspect_colors
+[note on process I/O]: process.html#process_a_note_on_process_i_o
 [web-api-assert]: https://developer.mozilla.org/en-US/docs/Web/API/console/assert

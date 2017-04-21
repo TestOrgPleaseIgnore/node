@@ -1,8 +1,29 @@
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 'use strict';
 require('../common');
-var assert = require('assert');
-var path = require('path');
-var fs = require('fs');
+const assert = require('assert');
+const path = require('path');
+const fs = require('fs');
 
 console.error('load test-module-loading.js');
 
@@ -15,21 +36,21 @@ assert.strictEqual(process.mainModule, module,
 require('../fixtures/not-main-module.js');
 
 // require a file with a request that includes the extension
-var a_js = require('../fixtures/a.js');
+const a_js = require('../fixtures/a.js');
 assert.strictEqual(42, a_js.number);
 
 // require a file without any extensions
-var foo_no_ext = require('../fixtures/foo');
+const foo_no_ext = require('../fixtures/foo');
 assert.strictEqual('ok', foo_no_ext.foo);
 
-var a = require('../fixtures/a');
-var c = require('../fixtures/b/c');
-var d = require('../fixtures/b/d');
-var d2 = require('../fixtures/b/d');
+const a = require('../fixtures/a');
+const c = require('../fixtures/b/c');
+const d = require('../fixtures/b/d');
+const d2 = require('../fixtures/b/d');
 // Absolute
-var d3 = require(path.join(__dirname, '../fixtures/b/d'));
+const d3 = require(path.join(__dirname, '../fixtures/b/d'));
 // Relative
-var d4 = require('../fixtures/b/d');
+const d4 = require('../fixtures/b/d');
 
 assert.strictEqual(false, false, 'testing the test program.');
 
@@ -96,12 +117,13 @@ require('../fixtures/node_modules/foo');
 
 console.error('test name clashes');
 // this one exists and should import the local module
-var my_path = require('../fixtures/path');
+const my_path = require('../fixtures/path');
 assert.ok(my_path.path_func instanceof Function);
 // this one does not exist and should throw
-assert.throws(function() { require('./utils'); });
+assert.throws(function() { require('./utils'); },
+              /^Error: Cannot find module '\.\/utils'$/);
 
-var errorThrown = false;
+let errorThrown = false;
 try {
   require('../fixtures/throws_error');
 } catch (e) {
@@ -113,7 +135,7 @@ assert.strictEqual(require('path').dirname(__filename), __dirname);
 
 console.error('load custom file types with extensions');
 require.extensions['.test'] = function(module, filename) {
-  var content = fs.readFileSync(filename).toString();
+  let content = fs.readFileSync(filename).toString();
   assert.strictEqual('this is custom source\n', content);
   content = content.replace('this is custom source',
                             'exports.test = \'passed\'');
@@ -126,7 +148,7 @@ assert.strictEqual(require('../fixtures/registerExt.hello.world').test,
                    'passed');
 
 console.error('load custom file types that return non-strings');
-require.extensions['.test'] = function(module, filename) {
+require.extensions['.test'] = function(module) {
   module.exports = {
     custom: 'passed'
   };
@@ -175,13 +197,13 @@ assert.strictEqual(require(loadOrder + 'file9').file9, 'file9/index.reg2', msg);
 
 // make sure that module.require() is the same as
 // doing require() inside of that module.
-var parent = require('../fixtures/module-require/parent/');
-var child = require('../fixtures/module-require/child/');
+const parent = require('../fixtures/module-require/parent/');
+const child = require('../fixtures/module-require/child/');
 assert.strictEqual(child.loaded, parent.loaded);
 
 
 // #1357 Loading JSON files with require()
-var json = require('../fixtures/packages/main/package.json');
+const json = require('../fixtures/packages/main/package.json');
 assert.deepStrictEqual(json, {
   name: 'package-name',
   version: '1.2.3',
@@ -193,8 +215,8 @@ assert.deepStrictEqual(json, {
 // modules that we've required, and that all of them contain
 // the appropriate children, and so on.
 
-var children = module.children.reduce(function red(set, child) {
-  var id = path.relative(path.dirname(__dirname), child.id);
+const children = module.children.reduce(function red(set, child) {
+  let id = path.relative(path.dirname(__dirname), child.id);
   id = id.replace(/\\/g, '/');
   set[id] = child.children.reduce(red, {});
   return set;
@@ -296,5 +318,5 @@ assert.strictEqual(42, require('../fixtures/utf8-bom.json'));
 assert.throws(function() {
   require('../fixtures/test-error-first-line-offset.js');
 }, function(err) {
-  return /test-error-first-line-offset.js:1:/.test(err.stack);
+  return /test-error-first-line-offset\.js:1:/.test(err.stack);
 }, 'Expected appearance of proper offset in Error stack');

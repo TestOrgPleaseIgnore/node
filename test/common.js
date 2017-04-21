@@ -1,3 +1,24 @@
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 /* eslint-disable required-modules */
 'use strict';
 const path = require('path');
@@ -6,12 +27,17 @@ const assert = require('assert');
 const os = require('os');
 const child_process = require('child_process');
 const stream = require('stream');
+const buffer = require('buffer');
 const util = require('util');
 const Timer = process.binding('timer_wrap').Timer;
+const execSync = require('child_process').execSync;
 
 const testRoot = process.env.NODE_TEST_DIR ?
-                   path.resolve(process.env.NODE_TEST_DIR) : __dirname;
+                   fs.realpathSync(process.env.NODE_TEST_DIR) : __dirname;
 
+const noop = () => {};
+
+exports.noop = noop;
 exports.fixturesDir = path.join(__dirname, 'fixtures');
 exports.tmpDirName = 'tmp';
 // PORT should match the definition in test/testpy/__init__.py.
@@ -29,7 +55,9 @@ exports.isLinux = process.platform === 'linux';
 exports.isOSX = process.platform === 'darwin';
 
 exports.enoughTestMem = os.totalmem() > 0x40000000; /* 1 Gb */
-
+exports.bufferMaxSizeMsg = new RegExp('^RangeError: "size" argument' +
+                                      ' must not be larger than ' +
+                                      buffer.kMaxLength + '$');
 const cpus = os.cpus();
 exports.enoughTestCpu = Array.isArray(cpus) &&
                         (cpus.length > 1 || cpus[0].speed > 999);
@@ -38,8 +66,9 @@ exports.rootDir = exports.isWindows ? 'c:\\' : '/';
 exports.buildType = process.config.target_defaults.default_configuration;
 
 function rimrafSync(p) {
+  let st;
   try {
-    var st = fs.lstatSync(p);
+    st = fs.lstatSync(p);
   } catch (e) {
     if (e.code === 'ENOENT')
       return;
@@ -93,9 +122,9 @@ if (process.env.TEST_THREAD_ID) {
 }
 exports.tmpDir = path.join(testRoot, exports.tmpDirName);
 
-var opensslCli = null;
-var inFreeBSDJail = null;
-var localhostIPv4 = null;
+let opensslCli = null;
+let inFreeBSDJail = null;
+let localhostIPv4 = null;
 
 exports.localIPv6Hosts = ['localhost'];
 if (exports.isLinux) {
@@ -165,8 +194,8 @@ Object.defineProperty(exports, 'opensslCli', {get: function() {
 
   if (exports.isWindows) opensslCli += '.exe';
 
-  var openssl_cmd = child_process.spawnSync(opensslCli, ['version']);
-  if (openssl_cmd.status !== 0 || openssl_cmd.error !== undefined) {
+  const opensslCmd = child_process.spawnSync(opensslCli, ['version']);
+  if (opensslCmd.status !== 0 || opensslCmd.error !== undefined) {
     // openssl command cannot be executed
     opensslCli = false;
   }
@@ -194,17 +223,39 @@ if (exports.isWindows) {
   exports.PIPE = exports.tmpDir + '/test.sock';
 }
 
-var ifaces = os.networkInterfaces();
+const ifaces = os.networkInterfaces();
 exports.hasIPv6 = Object.keys(ifaces).some(function(name) {
   return /lo/.test(name) && ifaces[name].some(function(info) {
     return info.family === 'IPv6';
   });
 });
 
+/*
+ * Check that when running a test with
+ * `$node --abort-on-uncaught-exception $file child`
+ * the process aborts.
+ */
+exports.childShouldThrowAndAbort = function() {
+  let testCmd = '';
+  if (!exports.isWindows) {
+    // Do not create core files, as it can take a lot of disk space on
+    // continuous testing and developers' machines
+    testCmd += 'ulimit -c 0 && ';
+  }
+  testCmd += `${process.argv[0]} --abort-on-uncaught-exception `;
+  testCmd += `${process.argv[1]} child`;
+  const child = child_process.exec(testCmd);
+  child.on('exit', function onExit(exitCode, signal) {
+    const errMsg = 'Test should have aborted ' +
+                   `but instead exited with exit code ${exitCode}` +
+                   ` and signal ${signal}`;
+    assert(exports.nodeProcessAborted(exitCode, signal), errMsg);
+  });
+};
 
 exports.ddCommand = function(filename, kilobytes) {
   if (exports.isWindows) {
-    var p = path.resolve(exports.fixturesDir, 'create-file.js');
+    const p = path.resolve(exports.fixturesDir, 'create-file.js');
     return '"' + process.argv[0] + '" "' + p + '" "' +
            filename + '" ' + (kilobytes * 1024);
   } else {
@@ -213,30 +264,8 @@ exports.ddCommand = function(filename, kilobytes) {
 };
 
 
-exports.spawnCat = function(options) {
-  var spawn = require('child_process').spawn;
-
-  if (exports.isWindows) {
-    return spawn('more', [], options);
-  } else {
-    return spawn('cat', [], options);
-  }
-};
-
-
-exports.spawnSyncCat = function(options) {
-  var spawnSync = require('child_process').spawnSync;
-
-  if (exports.isWindows) {
-    return spawnSync('more', [], options);
-  } else {
-    return spawnSync('cat', [], options);
-  }
-};
-
-
 exports.spawnPwd = function(options) {
-  var spawn = require('child_process').spawn;
+  const spawn = require('child_process').spawn;
 
   if (exports.isWindows) {
     return spawn('cmd.exe', ['/d', '/c', 'cd'], options);
@@ -260,6 +289,9 @@ exports.platformTimeout = function(ms) {
   if (process.config.target_defaults.default_configuration === 'Debug')
     ms = 2 * ms;
 
+  if (global.__coverage__)
+    ms = 4 * ms;
+
   if (exports.isAix)
     return 2 * ms; // default localhost speed is slower on AIX
 
@@ -277,7 +309,7 @@ exports.platformTimeout = function(ms) {
   return ms; // ARMv8+
 };
 
-var knownGlobals = [
+let knownGlobals = [
   Buffer,
   clearImmediate,
   clearInterval,
@@ -351,13 +383,17 @@ function allowGlobals(...whitelist) {
 exports.allowGlobals = allowGlobals;
 
 function leakedGlobals() {
-  var leaked = [];
+  const leaked = [];
 
-  for (var val in global)
+  for (const val in global)
     if (!knownGlobals.includes(global[val]))
       leaked.push(val);
 
-  return leaked;
+  if (global.__coverage__) {
+    return leaked.filter((varname) => !/^(cov_|__cov)/.test(varname));
+  } else {
+    return leaked;
+  }
 }
 exports.leakedGlobals = leakedGlobals;
 
@@ -366,21 +402,20 @@ exports.globalCheck = true;
 
 process.on('exit', function() {
   if (!exports.globalCheck) return;
-  var leaked = leakedGlobals();
+  const leaked = leakedGlobals();
   if (leaked.length > 0) {
-    console.error('Unknown globals: %s', leaked);
-    fail('Unknown global found');
+    assert.fail(`Unexpected global(s) found: ${leaked.join(', ')}`);
   }
 });
 
 
-var mustCallChecks = [];
+const mustCallChecks = [];
 
 
 function runCallChecks(exitCode) {
   if (exitCode !== 0) return;
 
-  var failed = mustCallChecks.filter(function(context) {
+  const failed = mustCallChecks.filter(function(context) {
     return context.actual !== context.expected;
   });
 
@@ -397,9 +432,19 @@ function runCallChecks(exitCode) {
 
 
 exports.mustCall = function(fn, expected) {
-  if (typeof expected !== 'number') expected = 1;
+  if (typeof fn === 'number') {
+    expected = fn;
+    fn = noop;
+  } else if (fn === undefined) {
+    fn = noop;
+  }
 
-  var context = {
+  if (expected === undefined)
+    expected = 1;
+  else if (typeof expected !== 'number')
+    throw new TypeError(`Invalid expected value: ${expected}`);
+
+  const context = {
     expected: expected,
     actual: 0,
     stack: (new Error()).stack,
@@ -418,9 +463,9 @@ exports.mustCall = function(fn, expected) {
 };
 
 exports.hasMultiLocalhost = function hasMultiLocalhost() {
-  var TCP = process.binding('tcp_wrap').TCP;
-  var t = new TCP();
-  var ret = t.bind('127.0.0.2', exports.PORT);
+  const TCP = process.binding('tcp_wrap').TCP;
+  const t = new TCP();
+  const ret = t.bind('127.0.0.2', exports.PORT);
   t.close();
   return ret === 0;
 };
@@ -434,10 +479,39 @@ exports.fileExists = function(pathname) {
   }
 };
 
-function fail(msg) {
-  assert.fail(null, null, msg);
-}
-exports.fail = fail;
+exports.canCreateSymLink = function() {
+  // On Windows, creating symlinks requires admin privileges.
+  // We'll only try to run symlink test if we have enough privileges.
+  // On other platforms, creating symlinks shouldn't need admin privileges
+  if (exports.isWindows) {
+    // whoami.exe needs to be the one from System32
+    // If unix tools are in the path, they can shadow the one we want,
+    // so use the full path while executing whoami
+    const whoamiPath = path.join(process.env['SystemRoot'],
+                                 'System32', 'whoami.exe');
+
+    let err = false;
+    let output = '';
+
+    try {
+      output = execSync(whoamiPath + ' /priv', { timout: 1000 });
+    } catch (e) {
+      err = true;
+    } finally {
+      if (err || !output.includes('SeCreateSymbolicLinkPrivilege')) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+};
+
+exports.mustNotCall = function(msg) {
+  return function mustNotCall() {
+    assert.fail(msg || 'function should not have been called');
+  };
+};
 
 exports.skip = function(msg) {
   console.log(`1..0 # Skipped: ${msg}`);
@@ -456,9 +530,9 @@ util.inherits(ArrayStream, stream.Stream);
 exports.ArrayStream = ArrayStream;
 ArrayStream.prototype.readable = true;
 ArrayStream.prototype.writable = true;
-ArrayStream.prototype.pause = function() {};
-ArrayStream.prototype.resume = function() {};
-ArrayStream.prototype.write = function() {};
+ArrayStream.prototype.pause = noop;
+ArrayStream.prototype.resume = noop;
+ArrayStream.prototype.write = noop;
 
 // Returns true if the exit code "exitCode" and/or signal name "signal"
 // represent the exit code and/or signal name of a node process that aborted,
@@ -466,7 +540,7 @@ ArrayStream.prototype.write = function() {};
 exports.nodeProcessAborted = function nodeProcessAborted(exitCode, signal) {
   // Depending on the compiler used, node will exit with either
   // exit code 132 (SIGILL), 133 (SIGTRAP) or 134 (SIGABRT).
-  var expectedExitCodes = [132, 133, 134];
+  let expectedExitCodes = [132, 133, 134];
 
   // On platforms using KSH as the default shell (like SmartOS),
   // when a process aborts, KSH exits with an exit code that is
@@ -495,8 +569,8 @@ exports.nodeProcessAborted = function nodeProcessAborted(exitCode, signal) {
 };
 
 exports.busyLoop = function busyLoop(time) {
-  var startTime = Timer.now();
-  var stopTime = startTime + time;
+  const startTime = Timer.now();
+  const stopTime = startTime + time;
   while (Timer.now() < stopTime) {}
 };
 
@@ -527,3 +601,77 @@ Object.defineProperty(exports, 'hasIntl', {
     return process.binding('config').hasIntl;
   }
 });
+
+// https://github.com/w3c/testharness.js/blob/master/testharness.js
+exports.WPT = {
+  test: (fn, desc) => {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`In ${desc}:`);
+      throw err;
+    }
+  },
+  assert_equals: assert.strictEqual,
+  assert_true: (value, message) => assert.strictEqual(value, true, message),
+  assert_false: (value, message) => assert.strictEqual(value, false, message),
+  assert_throws: (code, func, desc) => {
+    assert.throws(func, (err) => {
+      return typeof err === 'object' && 'name' in err && err.name === code.name;
+    }, desc);
+  },
+  assert_array_equals: assert.deepStrictEqual,
+  assert_unreached(desc) {
+    assert.fail(`Reached unreachable code: ${desc}`);
+  }
+};
+
+// Useful for testing expected internal/error objects
+exports.expectsError = function expectsError({code, type, message}) {
+  return function(error) {
+    assert.strictEqual(error.code, code);
+    if (type !== undefined)
+      assert(error instanceof type,
+             `${error} is not the expected type ${type}`);
+    if (message instanceof RegExp) {
+      assert(message.test(error.message),
+             `${error.message} does not match ${message}`);
+    } else if (typeof message === 'string') {
+      assert.strictEqual(error.message, message);
+    }
+    return true;
+  };
+};
+
+exports.skipIfInspectorDisabled = function skipIfInspectorDisabled() {
+  if (!exports.hasCrypto) {
+    exports.skip('missing ssl support so inspector is disabled');
+    process.exit(0);
+  }
+};
+
+const arrayBufferViews = [
+  Int8Array,
+  Uint8Array,
+  Uint8ClampedArray,
+  Int16Array,
+  Uint16Array,
+  Int32Array,
+  Uint32Array,
+  Float32Array,
+  Float64Array,
+  DataView
+];
+
+exports.getArrayBufferViews = function getArrayBufferViews(buf) {
+  const { buffer, byteOffset, byteLength } = buf;
+
+  const out = [];
+  for (const type of arrayBufferViews) {
+    const { BYTES_PER_ELEMENT = 1 } = type;
+    if (byteLength % BYTES_PER_ELEMENT === 0) {
+      out.push(new type(buffer, byteOffset, byteLength / BYTES_PER_ELEMENT));
+    }
+  }
+  return out;
+};

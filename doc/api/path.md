@@ -24,7 +24,7 @@ On POSIX:
 
 ```js
 path.basename('C:\\temp\\myfile.html');
-// Returns: 'C:\temp\myfile.html'
+// Returns: 'C:\\temp\\myfile.html'
 ```
 
 On Windows:
@@ -57,14 +57,19 @@ path.posix.basename('/tmp/myfile.html');
 ## path.basename(path[, ext])
 <!-- YAML
 added: v0.1.25
+changes:
+  - version: v6.0.0
+    pr-url: https://github.com/nodejs/node/pull/5348
+    description: Passing a non-string as the `path` argument will throw now.
 -->
 
-* `path` {String}
-* `ext` {String} An optional file extension
-* Returns: {String}
+* `path` {string}
+* `ext` {string} An optional file extension
+* Returns: {string}
 
 The `path.basename()` methods returns the last portion of a `path`, similar to
-the Unix `basename` command.
+the Unix `basename` command. Trailing directory separators are ignored, see
+[`path.sep`][].
 
 For example:
 
@@ -84,7 +89,7 @@ and is not a string.
 added: v0.9.3
 -->
 
-* {String}
+* {string}
 
 Provides the platform-specific path delimiter:
 
@@ -114,13 +119,18 @@ process.env.PATH.split(path.delimiter)
 ## path.dirname(path)
 <!-- YAML
 added: v0.1.16
+changes:
+  - version: v6.0.0
+    pr-url: https://github.com/nodejs/node/pull/5348
+    description: Passing a non-string as the `path` argument will throw now.
 -->
 
-* `path` {String}
-* Returns: {String}
+* `path` {string}
+* Returns: {string}
 
 The `path.dirname()` method returns the directory name of a `path`, similar to
-the Unix `dirname` command.
+the Unix `dirname` command. Trailing directory separators are ignored, see
+[`path.sep`][].
 
 For example:
 
@@ -134,10 +144,14 @@ A [`TypeError`][] is thrown if `path` is not a string.
 ## path.extname(path)
 <!-- YAML
 added: v0.1.25
+changes:
+  - version: v6.0.0
+    pr-url: https://github.com/nodejs/node/pull/5348
+    description: Passing a non-string as the `path` argument will throw now.
 -->
 
-* `path` {String}
-* Returns: {String}
+* `path` {string}
+* Returns: {string}
 
 The `path.extname()` method returns the extension of the `path`, from the last
 occurrence of the `.` (period) character to end of string in the last portion of
@@ -172,36 +186,30 @@ added: v0.11.15
 -->
 
 * `pathObject` {Object}
-  * `dir` {String}
-  * `root` {String}
-  * `base` {String}
-  * `name` {String}
-  * `ext` {String}
-* Returns: {String}
+  * `dir` {string}
+  * `root` {string}
+  * `base` {string}
+  * `name` {string}
+  * `ext` {string}
+* Returns: {string}
 
 The `path.format()` method returns a path string from an object. This is the
 opposite of [`path.parse()`][].
 
-The following process is used when constructing the path string:
+When providing properties to the `pathObject` remember that there are
+combinations where one property has priority over another:
 
-* `output` is set to an empty string.
-* If `pathObject.dir` is specified, `pathObject.dir` is appended to `output`
-  followed by the value of `path.sep`;
-* Otherwise, if `pathObject.root` is specified, `pathObject.root` is appended
-  to `output`.
-* If `pathObject.base` is specified, `pathObject.base` is appended to `output`;
-* Otherwise:
-  * If `pathObject.name` is specified, `pathObject.name` is appended to `output`
-  * If `pathObject.ext` is specified, `pathObject.ext` is appended to `output`.
-* Return `output`
+* `pathObject.root` is ignored if `pathObject.dir` is provided
+* `pathObject.ext` and `pathObject.name` are ignored if `pathObject.base` exists
 
 For example, on POSIX:
 
 ```js
-// If `dir` and `base` are provided,
+// If `dir`, `root` and `base` are provided,
 // `${dir}${path.sep}${base}`
-// will be returned.
+// will be returned. `root` is ignored.
 path.format({
+  root: '/ignored',
   dir: '/home/user/dir',
   base: 'file.txt'
 });
@@ -209,10 +217,11 @@ path.format({
 
 // `root` will be used if `dir` is not specified.
 // If only `root` is provided or `dir` is equal to `root` then the
-// platform separator will not be included.
+// platform separator will not be included. `ext` will be ignored.
 path.format({
   root: '/',
-  base: 'file.txt'
+  base: 'file.txt',
+  ext: 'ignored'
 });
 // Returns: '/file.txt'
 
@@ -223,23 +232,14 @@ path.format({
   ext: '.txt'
 });
 // Returns: '/file.txt'
-
-// `base` will be returned if `dir` or `root` are not provided.
-path.format({
-  base: 'file.txt'
-});
-// Returns: 'file.txt'
 ```
 
 On Windows:
 
 ```js
 path.format({
-    root : "C:\\",
-    dir : "C:\\path\\dir",
-    base : "file.txt",
-    ext : ".txt",
-    name : "file"
+  dir: 'C:\\path\\dir',
+  base: 'file.txt'
 });
 // Returns: 'C:\\path\\dir\\file.txt'
 ```
@@ -249,8 +249,8 @@ path.format({
 added: v0.11.2
 -->
 
-* `path` {String}
-* Returns: {Boolean}
+* `path` {string}
+* Returns: {boolean}
 
 The `path.isAbsolute()` method determines if `path` is an absolute path.
 
@@ -284,8 +284,8 @@ A [`TypeError`][] is thrown if `path` is not a string.
 added: v0.1.16
 -->
 
-* `...paths` {String} A sequence of path segments
-* Returns: {String}
+* `...paths` {string} A sequence of path segments
+* Returns: {string}
 
 The `path.join()` method joins all given `path` segments together using the
 platform specific separator as a delimiter, then normalizes the resulting path.
@@ -301,7 +301,7 @@ path.join('/foo', 'bar', 'baz/asdf', 'quux', '..')
 // Returns: '/foo/bar/baz/asdf'
 
 path.join('foo', {}, 'bar')
-// throws TypeError: Arguments to path.join must be strings
+// throws 'TypeError: Path must be a string. Received {}'
 ```
 
 A [`TypeError`][] is thrown if any of the path segments is not a string.
@@ -311,8 +311,8 @@ A [`TypeError`][] is thrown if any of the path segments is not a string.
 added: v0.1.23
 -->
 
-* `path` {String}
-* Returns: {String}
+* `path` {string}
+* Returns: {string}
 
 The `path.normalize()` method normalizes the given `path`, resolving `'..'` and
 `'.'` segments.
@@ -334,7 +334,7 @@ path.normalize('/foo/bar//baz/asdf/quux/..')
 On Windows:
 
 ```js
-path.normalize('C:\\temp\\\\foo\\bar\\..\\');
+path.normalize('C:\\temp\\\\foo\\bar\\..\\')
 // Returns: 'C:\\temp\\foo\\'
 ```
 
@@ -345,32 +345,31 @@ A [`TypeError`][] is thrown if `path` is not a string.
 added: v0.11.15
 -->
 
-* `path` {String}
+* `path` {string}
 * Returns: {Object}
 
 The `path.parse()` method returns an object whose properties represent
-significant elements of the `path`.
+significant elements of the `path`. Trailing directory separators are ignored,
+see [`path.sep`][].
 
 The returned object will have the following properties:
 
-* `root` {String}
-* `dir` {String}
-* `base` {String}
-* `ext` {String}
-* `name` {String}
+* `root` {string}
+* `dir` {string}
+* `base` {string}
+* `ext` {string}
+* `name` {string}
 
 For example on POSIX:
 
 ```js
 path.parse('/home/user/dir/file.txt')
 // Returns:
-// {
-//    root : "/",
-//    dir : "/home/user/dir",
-//    base : "file.txt",
-//    ext : ".txt",
-//    name : "file"
-// }
+// { root: '/',
+//   dir: '/home/user/dir',
+//   base: 'file.txt',
+//   ext: '.txt',
+//   name: 'file' }
 ```
 
 ```text
@@ -388,13 +387,11 @@ On Windows:
 ```js
 path.parse('C:\\path\\dir\\file.txt')
 // Returns:
-// {
-//    root : "C:\\",
-//    dir : "C:\\path\\dir",
-//    base : "file.txt",
-//    ext : ".txt",
-//    name : "file"
-// }
+// { root: 'C:\\',
+//   dir: 'C:\\path\\dir',
+//   base: 'file.txt',
+//   ext: '.txt',
+//   name: 'file' }
 ```
 
 ```text
@@ -422,11 +419,16 @@ of the `path` methods.
 ## path.relative(from, to)
 <!-- YAML
 added: v0.5.0
+changes:
+  - version: v6.8.0
+    pr-url: https://github.com/nodejs/node/pull/8523
+    description: On Windows, the leading slashes for UNC paths are now included
+                 in the return value.
 -->
 
-* `from` {String}
-* `to` {String}
-* Returns: {String}
+* `from` {string}
+* `to` {string}
+* Returns: {string}
 
 The `path.relative()` method returns the relative path from `from` to `to`.
 If `from` and `to` each resolve to the same path (after calling `path.resolve()`
@@ -456,8 +458,8 @@ A [`TypeError`][] is thrown if neither `from` nor `to` is a string.
 added: v0.3.4
 -->
 
-* `...paths` {String} A sequence of paths or path segments
-* Returns: {String}
+* `...paths` {string} A sequence of paths or path segments
+* Returns: {string}
 
 The `path.resolve()` method resolves a sequence of paths or path segments into
 an absolute path.
@@ -499,7 +501,7 @@ A [`TypeError`][] is thrown if any of the arguments is not a string.
 added: v0.7.9
 -->
 
-* {String}
+* {string}
 
 Provides the platform-specific path segment separator:
 
@@ -520,6 +522,10 @@ On Windows:
 // Returns: ['foo', 'bar', 'baz']
 ```
 
+*Note*: On Windows, both the forward slash (`/`) and backward slash (`\`) are
+accepted as path segment separators; however, the `path` methods only add
+backward slashes (`\`).
+
 ## path.win32
 <!-- YAML
 added: v0.11.15
@@ -530,11 +536,8 @@ added: v0.11.15
 The `path.win32` property provides access to Windows-specific implementations
 of the `path` methods.
 
-*Note*: On Windows, both the forward slash (`/`) and backward slash (`\`)
-characters are accepted as path delimiters; however, only the backward slash
-(`\`) will be used in return values.
-
 [`path.posix`]: #path_path_posix
+[`path.sep`]: #path_path_sep
 [`path.win32`]: #path_path_win32
 [`path.parse()`]: #path_path_parse_path
 [`TypeError`]: errors.html#errors_class_typeerror

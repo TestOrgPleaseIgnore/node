@@ -3,8 +3,10 @@ const common = require('../common');
 const assert = require('assert');
 const vm = require('vm');
 
-const Buffer = require('buffer').Buffer;
-const SlowBuffer = require('buffer').SlowBuffer;
+const buffer = require('buffer');
+const Buffer = buffer.Buffer;
+const SlowBuffer = buffer.SlowBuffer;
+
 
 const b = Buffer.allocUnsafe(1024);
 assert.strictEqual(1024, b.length);
@@ -462,6 +464,10 @@ assert.strictEqual(
 // Regression test for https://github.com/nodejs/node/issues/3496.
 assert.strictEqual(Buffer.from('=bad'.repeat(1e4), 'base64').length, 0);
 
+// Regression test for https://github.com/nodejs/node/issues/11987.
+assert.deepStrictEqual(Buffer.from('w0  ', 'base64'),
+                       Buffer.from('w0', 'base64'));
+
 {
   // Creating buffers larger than pool size.
   const l = Buffer.poolSize + 5;
@@ -508,11 +514,13 @@ assert.strictEqual(Buffer.from('=bad'.repeat(1e4), 'base64').length, 0);
   }
 }
 
-// Test single hex character throws TypeError
-// - https://github.com/nodejs/node/issues/6770
-assert.throws(() => Buffer.from('A', 'hex'), TypeError);
+// Test single hex character is discarded.
+assert.strictEqual(Buffer.from('A', 'hex').length, 0);
 
-// Test single base64 char encodes as 0
+// Test that if a trailing character is discarded, rest of string is processed.
+assert.deepStrictEqual(Buffer.from('Abx', 'hex'), Buffer.from('Ab', 'hex'));
+
+// Test single base64 char encodes as 0.
 assert.strictEqual(Buffer.from('A', 'base64').length, 0);
 
 
@@ -767,127 +775,21 @@ assert.strictEqual(Buffer.from('13.37').length, 5);
 // issue GH-3416
 Buffer.from(Buffer.allocUnsafe(0), 0, 0);
 
-// GH-5110
-{
-  const buffer = Buffer.from('test');
-  const string = JSON.stringify(buffer);
-
-  assert.strictEqual(string, '{"type":"Buffer","data":[116,101,115,116]}');
-
-  assert.deepStrictEqual(buffer, JSON.parse(string, (key, value) => {
-    return value && value.type === 'Buffer'
-      ? Buffer.from(value.data)
-      : value;
-  }));
-}
-
-// issue GH-7849
-{
-  const buf = Buffer.from('test');
-  const json = JSON.stringify(buf);
-  const obj = JSON.parse(json);
-  const copy = Buffer.from(obj);
-
-  assert(buf.equals(copy));
-}
-
-// issue GH-4331
-assert.throws(() => Buffer.allocUnsafe(0xFFFFFFFF), RangeError);
-assert.throws(() => Buffer.allocUnsafe(0xFFFFFFFFF), RangeError);
-
 // issue GH-5587
 assert.throws(() => Buffer.alloc(8).writeFloatLE(0, 5), RangeError);
 assert.throws(() => Buffer.alloc(16).writeDoubleLE(0, 9), RangeError);
 
 // attempt to overflow buffers, similar to previous bug in array buffers
-assert.throws(() => Buffer.allocUnsafe(8).readFloatLE(0xffffffff),
-              RangeError);
 assert.throws(() => Buffer.allocUnsafe(8).writeFloatLE(0.0, 0xffffffff),
-              RangeError);
-assert.throws(() => Buffer.allocUnsafe(8).readFloatLE(0xffffffff),
               RangeError);
 assert.throws(() => Buffer.allocUnsafe(8).writeFloatLE(0.0, 0xffffffff),
               RangeError);
 
 
 // ensure negative values can't get past offset
-assert.throws(() => Buffer.allocUnsafe(8).readFloatLE(-1), RangeError);
 assert.throws(() => Buffer.allocUnsafe(8).writeFloatLE(0.0, -1), RangeError);
-assert.throws(() => Buffer.allocUnsafe(8).readFloatLE(-1), RangeError);
 assert.throws(() => Buffer.allocUnsafe(8).writeFloatLE(0.0, -1), RangeError);
 
-// offset checks
-{
-  const buf = Buffer.allocUnsafe(0);
-
-  assert.throws(() => buf.readUInt8(0), RangeError);
-  assert.throws(() => buf.readInt8(0), RangeError);
-}
-
-{
-  const buf = Buffer.from([0xFF]);
-
-  assert.strictEqual(buf.readUInt8(0), 255);
-  assert.strictEqual(buf.readInt8(0), -1);
-}
-
-[16, 32].forEach((bits) => {
-  const buf = Buffer.allocUnsafe(bits / 8 - 1);
-
-  assert.throws(() => buf[`readUInt${bits}BE`](0),
-                RangeError,
-                `readUInt${bits}BE()`);
-
-  assert.throws(() => buf[`readUInt${bits}LE`](0),
-                RangeError,
-                `readUInt${bits}LE()`);
-
-  assert.throws(() => buf[`readInt${bits}BE`](0),
-                RangeError,
-                `readInt${bits}BE()`);
-
-  assert.throws(() => buf[`readInt${bits}LE`](0),
-                RangeError,
-                `readInt${bits}LE()`);
-});
-
-[16, 32].forEach((bits) => {
-  const buf = Buffer.from([0xFF, 0xFF, 0xFF, 0xFF]);
-
-  assert.strictEqual(buf[`readUInt${bits}BE`](0),
-                     (0xFFFFFFFF >>> (32 - bits)));
-
-  assert.strictEqual(buf[`readUInt${bits}LE`](0),
-                     (0xFFFFFFFF >>> (32 - bits)));
-
-  assert.strictEqual(buf[`readInt${bits}BE`](0),
-                     (0xFFFFFFFF >> (32 - bits)));
-
-  assert.strictEqual(buf[`readInt${bits}LE`](0),
-                     (0xFFFFFFFF >> (32 - bits)));
-});
-
-// test for common read(U)IntLE/BE
-{
-  const buf = Buffer.from([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
-
-  assert.strictEqual(buf.readUIntLE(0, 1), 0x01);
-  assert.strictEqual(buf.readUIntBE(0, 1), 0x01);
-  assert.strictEqual(buf.readUIntLE(0, 3), 0x030201);
-  assert.strictEqual(buf.readUIntBE(0, 3), 0x010203);
-  assert.strictEqual(buf.readUIntLE(0, 5), 0x0504030201);
-  assert.strictEqual(buf.readUIntBE(0, 5), 0x0102030405);
-  assert.strictEqual(buf.readUIntLE(0, 6), 0x060504030201);
-  assert.strictEqual(buf.readUIntBE(0, 6), 0x010203040506);
-  assert.strictEqual(buf.readIntLE(0, 1), 0x01);
-  assert.strictEqual(buf.readIntBE(0, 1), 0x01);
-  assert.strictEqual(buf.readIntLE(0, 3), 0x030201);
-  assert.strictEqual(buf.readIntBE(0, 3), 0x010203);
-  assert.strictEqual(buf.readIntLE(0, 5), 0x0504030201);
-  assert.strictEqual(buf.readIntBE(0, 5), 0x0102030405);
-  assert.strictEqual(buf.readIntLE(0, 6), 0x060504030201);
-  assert.strictEqual(buf.readIntBE(0, 6), 0x010203040506);
-}
 
 // test for common write(U)IntLE/BE
 {
@@ -983,14 +885,13 @@ assert.throws(() => Buffer.allocUnsafe(8).writeFloatLE(0.0, -1), RangeError);
 }
 
 // Regression test for #5482: should throw but not assert in C++ land.
-assert.throws(() => Buffer.from('', 'buffer'), TypeError);
+assert.throws(() => Buffer.from('', 'buffer'),
+              /^TypeError: "encoding" must be a valid string encoding$/);
 
 // Regression test for #6111. Constructing a buffer from another buffer
 // should a) work, and b) not corrupt the source buffer.
 {
-  let a = [0];
-  for (let i = 0; i < 7; ++i) a = a.concat(a);
-  a = a.map((_, i) => {return i;});
+  const a = [...Array(128).keys()]; // [0, 1, 2, 3, ... 126, 127]
   const b = Buffer.from(a);
   const c = Buffer.from(b);
   assert.strictEqual(b.length, a.length);
@@ -1001,10 +902,6 @@ assert.throws(() => Buffer.from('', 'buffer'), TypeError);
     assert.strictEqual(c[i], i);
   }
 }
-
-assert.throws(() => Buffer.allocUnsafe((-1 >>> 0) + 1), RangeError);
-assert.throws(() => Buffer.allocUnsafeSlow((-1 >>> 0) + 1), RangeError);
-assert.throws(() => SlowBuffer((-1 >>> 0) + 1), RangeError);
 
 if (common.hasCrypto) {
   // Test truncation after decode
@@ -1031,7 +928,7 @@ assert.throws(() => Buffer.allocUnsafe(10).copy(),
               /TypeError: argument should be a Buffer/);
 
 const regErrorMsg = new RegExp('First argument must be a string, Buffer, ' +
-                               'ArrayBuffer, Array, or array-like object.');
+                               'ArrayBuffer, Array, or array-like object\\.');
 
 assert.throws(() => Buffer.from(), regErrorMsg);
 assert.throws(() => Buffer.from(null), regErrorMsg);

@@ -5,7 +5,9 @@ const EventEmitter = require('events');
 const assert = require('assert');
 
 const ee = new EventEmitter();
-const handler = () => {};
+const handler = common.noop;
+
+assert.deepStrictEqual(ee.eventNames(), []);
 
 assert.strictEqual(ee._events.hasOwnProperty, undefined);
 assert.strictEqual(ee._events.toString, undefined);

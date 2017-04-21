@@ -38,16 +38,25 @@
       ['OS == "win"', {
         'os_posix': 0,
         'v8_postmortem_support%': 'false',
+        'OBJ_DIR': '<(PRODUCT_DIR)/obj',
+        'V8_BASE': '<(PRODUCT_DIR)/lib/v8_libbase.lib',
       }, {
         'os_posix': 1,
         'v8_postmortem_support%': 'true',
       }],
-      ['GENERATOR == "ninja" or OS== "mac"', {
-        'OBJ_DIR': '<(PRODUCT_DIR)/obj',
+      ['OS== "mac"', {
+        'OBJ_DIR': '<(PRODUCT_DIR)/obj.target',
         'V8_BASE': '<(PRODUCT_DIR)/libv8_base.a',
       }, {
-        'OBJ_DIR': '<(PRODUCT_DIR)/obj.target',
-        'V8_BASE': '<(PRODUCT_DIR)/obj.target/deps/v8/src/libv8_base.a',
+        'conditions': [
+          ['GENERATOR=="ninja"', {
+            'OBJ_DIR': '<(PRODUCT_DIR)/obj',
+            'V8_BASE': '<(PRODUCT_DIR)/obj/deps/v8/src/libv8_base.a',
+          }, {
+            'OBJ_DIR%': '<(PRODUCT_DIR)/obj.target',
+            'V8_BASE%': '<(PRODUCT_DIR)/obj.target/deps/v8/src/libv8_base.a',
+          }],
+        ],
       }],
       ['openssl_fips != ""', {
         'OPENSSL_PRODUCT': 'libcrypto.a',
@@ -69,7 +78,7 @@
         'variables': {
           'v8_enable_handle_zapping': 1,
         },
-        'defines': [ 'DEBUG', '_DEBUG' ],
+        'defines': [ 'DEBUG', '_DEBUG', 'V8_ENABLE_CHECKS' ],
         'cflags': [ '-g', '-O0' ],
         'conditions': [
           ['target_arch=="x64"', {
@@ -188,6 +197,10 @@
         'BufferSecurityCheck': 'true',
         'ExceptionHandling': 0, # /EHsc
         'SuppressStartupBanner': 'true',
+        # Disable "warning C4267: conversion from 'size_t' to 'int',
+        # possible loss of data".  Many originate from our dependencies
+        # and their sheer number drowns out other, more legitimate warnings.
+        'DisableSpecificWarnings': ['4267'],
         'WarnAsError': 'false',
       },
       'VCLibrarianTool': {
@@ -304,12 +317,12 @@
 	    'ldflags': [ '-m64' ],
 	   }],
           [ 'target_arch=="s390"', {
-            'cflags': [ '-m31' ],
-            'ldflags': [ '-m31' ],
+            'cflags': [ '-m31', '-march=z196' ],
+            'ldflags': [ '-m31', '-march=z196' ],
           }],
           [ 'target_arch=="s390x"', {
-            'cflags': [ '-m64' ],
-            'ldflags': [ '-m64' ],
+            'cflags': [ '-m64', '-march=z196' ],
+            'ldflags': [ '-m64', '-march=z196' ],
           }],
           [ 'OS=="solaris"', {
             'cflags': [ '-pthreads' ],

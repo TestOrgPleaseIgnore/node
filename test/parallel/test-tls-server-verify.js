@@ -1,3 +1,24 @@
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 'use strict';
 const common = require('../common');
 
@@ -15,88 +36,88 @@ if (!common.opensslCli) {
 // - accepted and "authorized".
 
 const testCases =
-    [{ title: 'Do not request certs. Everyone is unauthorized.',
-      requestCert: false,
-      rejectUnauthorized: false,
-      renegotiate: false,
-      CAs: ['ca1-cert'],
-      clients:
-       [{ name: 'agent1', shouldReject: false, shouldAuth: false },
+  [{ title: 'Do not request certs. Everyone is unauthorized.',
+     requestCert: false,
+     rejectUnauthorized: false,
+     renegotiate: false,
+     CAs: ['ca1-cert'],
+     clients:
+     [{ name: 'agent1', shouldReject: false, shouldAuth: false },
         { name: 'agent2', shouldReject: false, shouldAuth: false },
         { name: 'agent3', shouldReject: false, shouldAuth: false },
         { name: 'nocert', shouldReject: false, shouldAuth: false }
-       ]
-    },
+     ]
+  },
 
-    { title: 'Allow both authed and unauthed connections with CA1',
-      requestCert: true,
-      rejectUnauthorized: false,
-      renegotiate: false,
-      CAs: ['ca1-cert'],
-      clients:
-       [{ name: 'agent1', shouldReject: false, shouldAuth: true },
+  { title: 'Allow both authed and unauthed connections with CA1',
+    requestCert: true,
+    rejectUnauthorized: false,
+    renegotiate: false,
+    CAs: ['ca1-cert'],
+    clients:
+    [{ name: 'agent1', shouldReject: false, shouldAuth: true },
         { name: 'agent2', shouldReject: false, shouldAuth: false },
         { name: 'agent3', shouldReject: false, shouldAuth: false },
         { name: 'nocert', shouldReject: false, shouldAuth: false }
-       ]
-    },
+    ]
+  },
 
-    { title: 'Do not request certs at connection. Do that later',
-      requestCert: false,
-      rejectUnauthorized: false,
-      renegotiate: true,
-      CAs: ['ca1-cert'],
-      clients:
-       [{ name: 'agent1', shouldReject: false, shouldAuth: true },
+  { title: 'Do not request certs at connection. Do that later',
+    requestCert: false,
+    rejectUnauthorized: false,
+    renegotiate: true,
+    CAs: ['ca1-cert'],
+    clients:
+    [{ name: 'agent1', shouldReject: false, shouldAuth: true },
         { name: 'agent2', shouldReject: false, shouldAuth: false },
         { name: 'agent3', shouldReject: false, shouldAuth: false },
         { name: 'nocert', shouldReject: false, shouldAuth: false }
-       ]
-    },
+    ]
+  },
 
-    { title: 'Allow only authed connections with CA1',
-      requestCert: true,
-      rejectUnauthorized: true,
-      renegotiate: false,
-      CAs: ['ca1-cert'],
-      clients:
-       [{ name: 'agent1', shouldReject: false, shouldAuth: true },
+  { title: 'Allow only authed connections with CA1',
+    requestCert: true,
+    rejectUnauthorized: true,
+    renegotiate: false,
+    CAs: ['ca1-cert'],
+    clients:
+    [{ name: 'agent1', shouldReject: false, shouldAuth: true },
         { name: 'agent2', shouldReject: true },
         { name: 'agent3', shouldReject: true },
         { name: 'nocert', shouldReject: true }
-       ]
-    },
+    ]
+  },
 
-    { title: 'Allow only authed connections with CA1 and CA2',
-      requestCert: true,
-      rejectUnauthorized: true,
-      renegotiate: false,
-      CAs: ['ca1-cert', 'ca2-cert'],
-      clients:
-       [{ name: 'agent1', shouldReject: false, shouldAuth: true },
+  { title: 'Allow only authed connections with CA1 and CA2',
+    requestCert: true,
+    rejectUnauthorized: true,
+    renegotiate: false,
+    CAs: ['ca1-cert', 'ca2-cert'],
+    clients:
+    [{ name: 'agent1', shouldReject: false, shouldAuth: true },
         { name: 'agent2', shouldReject: true },
         { name: 'agent3', shouldReject: false, shouldAuth: true },
         { name: 'nocert', shouldReject: true }
-       ]
-    },
+    ]
+  },
 
 
-    { title: 'Allow only certs signed by CA2 but not in the CRL',
-      requestCert: true,
-      rejectUnauthorized: true,
-      renegotiate: false,
-      CAs: ['ca2-cert'],
-      crl: 'ca2-crl',
-      clients: [
+  { title: 'Allow only certs signed by CA2 but not in the CRL',
+    requestCert: true,
+    rejectUnauthorized: true,
+    renegotiate: false,
+    CAs: ['ca2-cert'],
+    crl: 'ca2-crl',
+    clients: [
         { name: 'agent1', shouldReject: true, shouldAuth: false },
         { name: 'agent2', shouldReject: true, shouldAuth: false },
         { name: 'agent3', shouldReject: false, shouldAuth: true },
         // Agent4 has a cert in the CRL.
         { name: 'agent4', shouldReject: true, shouldAuth: false },
         { name: 'nocert', shouldReject: true }
-      ]
-    }
-    ];
+    ]
+  }
+  ];
 
 if (!common.hasCrypto) {
   common.skip('missing crypto');
@@ -216,7 +237,7 @@ function runClient(prefix, port, options, cb) {
   //client.stdout.pipe(process.stdout);
 
   client.on('exit', function(code) {
-    //assert.equal(0, code, prefix + options.name +
+    //assert.strictEqual(0, code, prefix + options.name +
     //      ": s_client exited with error code " + code);
     if (options.shouldReject) {
       assert.strictEqual(true, rejected, prefix + options.name +
@@ -282,7 +303,7 @@ function runTest(port, testIndex) {
           requestCert: true,
           rejectUnauthorized: false
         }, function(err) {
-          assert(!err);
+          assert.ifError(err);
           c.write('\n_renegotiated\n');
           handleConnection(c);
         });

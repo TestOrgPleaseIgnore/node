@@ -6,11 +6,11 @@
 #define V8_TYPE_INFO_H_
 
 #include "src/allocation.h"
+#include "src/ast/ast-types.h"
 #include "src/contexts.h"
 #include "src/globals.h"
 #include "src/parsing/token.h"
-#include "src/types.h"
-#include "src/zone.h"
+#include "src/zone/zone.h"
 
 namespace v8 {
 namespace internal {
@@ -23,7 +23,7 @@ class StubCache;
 class TypeFeedbackOracle: public ZoneObject {
  public:
   TypeFeedbackOracle(Isolate* isolate, Zone* zone, Handle<Code> code,
-                     Handle<TypeFeedbackVector> feedback_vector,
+                     Handle<FeedbackVector> feedback_vector,
                      Handle<Context> native_context);
 
   InlineCacheState LoadInlineCacheState(FeedbackVectorSlot slot);
@@ -77,20 +77,16 @@ class TypeFeedbackOracle: public ZoneObject {
   uint16_t ToBooleanTypes(TypeFeedbackId id);
 
   // Get type information for arithmetic operations and compares.
-  void BinaryType(TypeFeedbackId id,
-                  Type** left,
-                  Type** right,
-                  Type** result,
+  void BinaryType(TypeFeedbackId id, FeedbackVectorSlot slot, AstType** left,
+                  AstType** right, AstType** result,
                   Maybe<int>* fixed_right_arg,
                   Handle<AllocationSite>* allocation_site,
                   Token::Value operation);
 
-  void CompareType(TypeFeedbackId id,
-                   Type** left,
-                   Type** right,
-                   Type** combined);
+  void CompareType(TypeFeedbackId id, FeedbackVectorSlot slot, AstType** left,
+                   AstType** right, AstType** combined);
 
-  Type* CountType(TypeFeedbackId id);
+  AstType* CountType(TypeFeedbackId id, FeedbackVectorSlot slot);
 
   Zone* zone() const { return zone_; }
   Isolate* isolate() const { return isolate_; }
@@ -128,7 +124,7 @@ class TypeFeedbackOracle: public ZoneObject {
   Isolate* isolate_;
   Zone* zone_;
   Handle<UnseededNumberDictionary> dictionary_;
-  Handle<TypeFeedbackVector> feedback_vector_;
+  Handle<FeedbackVector> feedback_vector_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeFeedbackOracle);
 };

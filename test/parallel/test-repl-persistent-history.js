@@ -21,26 +21,24 @@ os.homedir = function() {
 class ActionStream extends stream.Stream {
   run(data) {
     const _iter = data[Symbol.iterator]();
-    const self = this;
-
-    function doAction() {
+    const doAction = () => {
       const next = _iter.next();
       if (next.done) {
         // Close the repl. Note that it must have a clean prompt to do so.
-        setImmediate(function() {
-          self.emit('keypress', '', { ctrl: true, name: 'd' });
+        setImmediate(() => {
+          this.emit('keypress', '', { ctrl: true, name: 'd' });
         });
         return;
       }
       const action = next.value;
 
       if (typeof action === 'object') {
-        self.emit('keypress', '', action);
+        this.emit('keypress', '', action);
       } else {
-        self.emit('data', action + '\n');
+        this.emit('data', action + '\n');
       }
       setImmediate(doAction);
-    }
+    };
     setImmediate(doAction);
   }
   resume() {}
@@ -78,6 +76,8 @@ const oldHistoryPath = path.join(fixtures, 'old-repl-history-file.json');
 const enoentHistoryPath = path.join(fixtures, 'enoent-repl-history-file.json');
 const emptyHistoryPath = path.join(fixtures, '.empty-repl-history-file');
 const defaultHistoryPath = path.join(common.tmpDir, '.node_repl_history');
+const emptyHiddenHistoryPath = path.join(fixtures,
+                                         '.empty-hidden-repl-history-file');
 
 const tests = [
   {
@@ -165,6 +165,19 @@ const tests = [
     test: [UP],
     expected: [prompt, replFailedRead, prompt, replDisabled, prompt]
   },
+  {
+    before: function before() {
+      if (common.isWindows) {
+        const execSync = require('child_process').execSync;
+        execSync(`ATTRIB +H "${emptyHiddenHistoryPath}"`, (err) => {
+          assert.ifError(err);
+        });
+      }
+    },
+    env: { NODE_REPL_HISTORY: emptyHiddenHistoryPath },
+    test: [UP],
+    expected: [prompt]
+  },
   { // Make sure this is always the last test, since we change os.homedir()
     before: function before() {
       // Mock os.homedir() failure
@@ -180,7 +193,7 @@ const tests = [
 const numtests = tests.length;
 
 
-var testsNotRan = tests.length;
+let testsNotRan = tests.length;
 
 process.on('beforeExit', () =>
   assert.strictEqual(testsNotRan, 0)

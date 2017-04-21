@@ -16,7 +16,7 @@ const fs = require('fs');
 if (process.env.CHILD) {
   const copts = {
     port: process.env.PORT,
-    checkServerIdentity: function() {},
+    checkServerIdentity: common.noop,
   };
   const client = tls.connect(copts, function() {
     client.end('hi');
@@ -40,6 +40,6 @@ const server = tls.createServer(options, function(s) {
   };
 
   fork(__filename, {env: env}).on('exit', common.mustCall(function(status) {
-    assert.equal(status, 0, 'client did not succeed in connecting');
+    assert.strictEqual(status, 0, 'client did not succeed in connecting');
   }));
 }));

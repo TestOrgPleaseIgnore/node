@@ -1,3 +1,24 @@
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 'use strict';
 const common = require('../common');
 
@@ -53,23 +74,33 @@ assert.throws(function() {
 }, /^TypeError: Data must be a string or a buffer$/);
 
 
-function assertSorted(list) {
+function validateList(list) {
+  // The list must not be empty
+  assert(list.length > 0);
+
+  // The list should be sorted.
   // Array#sort() modifies the list in place so make a copy.
-  const sorted = list.slice().sort();
+  const sorted = [...list].sort();
   assert.deepStrictEqual(list, sorted);
+
+  // Each element should be unique.
+  assert.strictEqual([...new Set(list)].length, list.length);
+
+  // Each element should be a string.
+  assert(list.every((value) => typeof value === 'string'));
 }
 
 // Assume that we have at least AES-128-CBC.
-assert.notStrictEqual(0, crypto.getCiphers().length);
+const cryptoCiphers = crypto.getCiphers();
 assert(crypto.getCiphers().includes('aes-128-cbc'));
-assert(!crypto.getCiphers().includes('AES-128-CBC'));
-assertSorted(crypto.getCiphers());
+validateList(cryptoCiphers);
 
 // Assume that we have at least AES256-SHA.
-assert.notStrictEqual(0, tls.getCiphers().length);
+const tlsCiphers = tls.getCiphers();
 assert(tls.getCiphers().includes('aes256-sha'));
-assert(!tls.getCiphers().includes('AES256-SHA'));
-assertSorted(tls.getCiphers());
+// There should be no capital letters in any element.
+assert(tlsCiphers.every((value) => /^[^A-Z]+$/.test(value)));
+validateList(tlsCiphers);
 
 // Assert that we have sha and sha1 but not SHA and SHA1.
 assert.notStrictEqual(0, crypto.getHashes().length);
@@ -79,13 +110,27 @@ assert(!crypto.getHashes().includes('SHA1'));
 assert(!crypto.getHashes().includes('SHA'));
 assert(crypto.getHashes().includes('RSA-SHA1'));
 assert(!crypto.getHashes().includes('rsa-sha1'));
-assertSorted(crypto.getHashes());
+validateList(crypto.getHashes());
 
 // Assume that we have at least secp384r1.
 assert.notStrictEqual(0, crypto.getCurves().length);
 assert(crypto.getCurves().includes('secp384r1'));
 assert(!crypto.getCurves().includes('SECP384R1'));
-assertSorted(crypto.getCurves());
+validateList(crypto.getCurves());
+
+// Modifying return value from get* functions should not mutate subsequent
+// return values.
+function testImmutability(fn) {
+  const list = fn();
+  const copy = [...list];
+  list.push('some-arbitrary-value');
+  assert.deepStrictEqual(fn(), copy);
+}
+
+testImmutability(crypto.getCiphers);
+testImmutability(tls.getCiphers);
+testImmutability(crypto.getHashes);
+testImmutability(crypto.getCurves);
 
 // Regression tests for #5725: hex input that's not a power of two should
 // throw, not assert in C++ land.
@@ -144,3 +189,42 @@ console.log(crypto.randomBytes(16));
 assert.throws(function() {
   tls.createSecureContext({ crl: 'not a CRL' });
 }, /^Error: Failed to parse CRL$/);
+
+/**
+ * Check if the stream function uses utf8 as a default encoding.
+ **/
+
+function testEncoding(options, assertionHash) {
+  const hash = crypto.createHash('sha256', options);
+  let hashValue = '';
+
+  hash.on('data', (data) => {
+    hashValue += data.toString('hex');
+  });
+
+  hash.on('end', common.mustCall(() => {
+    assert.strictEqual(hashValue, assertionHash);
+  }));
+
+  hash.write('öäü');
+  hash.end();
+}
+
+// Hash of "öäü" in utf8 format
+const assertionHashUtf8 =
+  '4f53d15bee524f082380e6d7247cc541e7cb0d10c64efdcc935ceeb1e7ea345c';
+
+// Hash of "öäü" in latin1 format
+const assertionHashLatin1 =
+  'cd37bccd5786e2e76d9b18c871e919e6eb11cc12d868f5ae41c40ccff8e44830';
+
+testEncoding(undefined, assertionHashUtf8);
+testEncoding({}, assertionHashUtf8);
+
+testEncoding({
+  defaultEncoding: 'utf8'
+}, assertionHashUtf8);
+
+testEncoding({
+  defaultEncoding: 'latin1'
+}, assertionHashLatin1);

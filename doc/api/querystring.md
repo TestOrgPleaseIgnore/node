@@ -16,7 +16,7 @@ const querystring = require('querystring');
 added: v0.1.25
 -->
 
-* `str` {String}
+* `str` {string}
 
 The `querystring.escape()` method performs URL percent-encoding on the given
 `str` in a manner that is optimized for the specific requirements of URL
@@ -30,12 +30,22 @@ necessary by assigning `querystring.escape` to an alternative function.
 ## querystring.parse(str[, sep[, eq[, options]]])
 <!-- YAML
 added: v0.1.25
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/10967
+    description: Multiple empty entries are now parsed correctly (e.g. `&=&=`).
+  - version: v6.0.0
+    pr-url: https://github.com/nodejs/node/pull/6055
+    description: The returned object no longer inherits from `Object.prototype`.
+  - version: v6.0.0, v4.2.4
+    pr-url: https://github.com/nodejs/node/pull/3807
+    description: The `eq` parameter may now have a length of more than `1`.
 -->
 
-* `str` {String} The URL query string to parse
-* `sep` {String} The substring used to delimit key and value pairs in the
+* `str` {string} The URL query string to parse
+* `sep` {string} The substring used to delimit key and value pairs in the
   query string. Defaults to `'&'`.
-* `eq` {String}. The substring used to delimit keys and values in the
+* `eq` {string}. The substring used to delimit keys and values in the
   query string. Defaults to `'='`.
 * `options` {Object}
   * `decodeURIComponent` {Function} The function to use when decoding
@@ -79,9 +89,9 @@ added: v0.1.25
 -->
 
 * `obj` {Object} The object to serialize into a URL query string
-* `sep` {String} The substring used to delimit key and value pairs in the
+* `sep` {string} The substring used to delimit key and value pairs in the
   query string. Defaults to `'&'`.
-* `eq` {String}. The substring used to delimit keys and values in the
+* `eq` {string}. The substring used to delimit keys and values in the
   query string. Defaults to `'='`.
 * `options`
   * `encodeURIComponent` {Function} The function to use when converting
@@ -91,13 +101,17 @@ added: v0.1.25
 The `querystring.stringify()` method produces a URL query string from a
 given `obj` by iterating through the object's "own properties".
 
+It serializes the following types of values passed in `obj`:
+{string|number|boolean|string[]|number[]|boolean[]}
+Any other input values will be coerced to empty strings.
+
 For example:
 
 ```js
 querystring.stringify({ foo: 'bar', baz: ['qux', 'quux'], corge: '' })
 // returns 'foo=bar&baz=qux&baz=quux&corge='
 
-querystring.stringify({foo: 'bar', baz: 'qux'}, ';', ':')
+querystring.stringify({ foo: 'bar', baz: 'qux' }, ';', ':')
 // returns 'foo:bar;baz:qux'
 ```
 
@@ -117,7 +131,7 @@ querystring.stringify({ w: '中文', foo: 'bar' }, null, null,
 <!-- YAML
 added: v0.1.25
 -->
-* `str` {String}
+* `str` {string}
 
 
 The `querystring.unescape()` method performs decoding of URL percent-encoded

@@ -1,29 +1,50 @@
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 'use strict';
 // Simple tests of most basic domain functionality.
 
-require('../common');
-var assert = require('assert');
-var domain = require('domain');
-var events = require('events');
-var fs = require('fs');
-var caught = 0;
-var expectCaught = 0;
+const common = require('../common');
+const assert = require('assert');
+const domain = require('domain');
+const events = require('events');
+const fs = require('fs');
+let caught = 0;
+let expectCaught = 0;
 
-var d = new domain.Domain();
-var e = new events.EventEmitter();
+const d = new domain.Domain();
+const e = new events.EventEmitter();
 
 d.on('error', function(er) {
   console.error('caught', er && (er.message || er));
 
-  var er_message = er.message;
-  var er_path = er.path;
+  let er_message = er.message;
+  let er_path = er.path;
 
   // On windows, error messages can contain full path names. If this is the
   // case, remove the directory part.
   if (typeof er_path === 'string') {
-    var slash = er_path.lastIndexOf('\\');
+    const slash = er_path.lastIndexOf('\\');
     if (slash !== -1) {
-      var dir = er_path.slice(0, slash + 1);
+      const dir = er_path.slice(0, slash + 1);
       er_path = er_path.replace(dir, '');
       er_message = er_message.replace(dir, '');
     }
@@ -129,7 +150,7 @@ expectCaught++;
 // set up while in the scope of the d domain.
 d.run(function() {
   process.nextTick(function() {
-    var i = setInterval(function() {
+    const i = setInterval(function() {
       clearInterval(i);
       setTimeout(function() {
         fs.stat('this file does not exist', function(er, stat) {
@@ -137,8 +158,8 @@ d.run(function() {
           // pretty common error.
           console.log(stat.isDirectory());
         });
-      });
-    });
+      }, 1);
+    }, 1);
   });
 });
 expectCaught++;
@@ -148,7 +169,7 @@ expectCaught++;
 d.run(function() {
   setTimeout(function() {
     throw new Error('implicit timer');
-  });
+  }, 1);
 });
 expectCaught++;
 
@@ -162,11 +183,11 @@ expectCaught++;
 // get rid of the `if (er) return cb(er)` malarky, by intercepting
 // the cb functions to the domain, and using the intercepted function
 // as a callback instead.
-function fn(er) {
+function fn() {
   throw new Error('This function should never be called!');
 }
 
-var bound = d.intercept(fn);
+let bound = d.intercept(fn);
 bound(new Error('bound'));
 expectCaught++;
 
@@ -210,7 +231,7 @@ expectCaught++;
 
 
 // implicit addition by being created within a domain-bound context.
-var implicit;
+let implicit;
 
 d.run(function() {
   implicit = new events.EventEmitter();
@@ -223,7 +244,7 @@ setTimeout(function() {
 expectCaught++;
 
 
-var result = d.run(function() {
+let result = d.run(function() {
   return 'return value';
 });
 assert.strictEqual(result, 'return value');
@@ -236,12 +257,12 @@ result = d.run(function(a, b) {
 assert.strictEqual(result, 'return value');
 
 
-var fst = fs.createReadStream('stream for nonexistent file');
+const fst = fs.createReadStream('stream for nonexistent file');
 d.add(fst);
 expectCaught++;
 
-[42, null, , false, function() {}, 'string'].forEach(function(something) {
-  var d = new domain.Domain();
+[42, null, , false, common.noop, 'string'].forEach(function(something) {
+  const d = new domain.Domain();
   d.run(function() {
     process.nextTick(function() {
       throw something;

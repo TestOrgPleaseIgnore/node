@@ -80,8 +80,8 @@ function tearDown(child, err) {
   }
 }
 
-function checkHttpResponse(port, path, callback) {
-  http.get({port, path}, function(res) {
+function checkHttpResponse(host, port, path, callback, errorcb) {
+  const req = http.get({host, port, path}, function(res) {
     let response = '';
     res.setEncoding('utf8');
     res
@@ -98,6 +98,8 @@ function checkHttpResponse(port, path, callback) {
         callback(err, json);
       });
   });
+  if (errorcb)
+    req.on('error', errorcb);
 }
 
 function makeBufferingDataCallback(dataCallback) {
@@ -110,13 +112,14 @@ function makeBufferingDataCallback(dataCallback) {
       buffer = Buffer.alloc(0);
     else
       buffer = Buffer.from(lines.pop(), 'utf8');
-    for (var line of lines)
+    for (const line of lines)
       dataCallback(line);
   };
 }
 
 function timeout(message, multiplicator) {
-  return setTimeout(() => common.fail(message), TIMEOUT * (multiplicator || 1));
+  return setTimeout(common.mustNotCall(message),
+                    TIMEOUT * (multiplicator || 1));
 }
 
 const TestSession = function(socket, harness) {
@@ -214,7 +217,7 @@ TestSession.prototype.sendInspectorCommands = function(commands) {
         for (const id in this.messages_) {
           s += id + ', ';
         }
-        common.fail('Messages without response: ' +
+        assert.fail('Messages without response: ' +
                     s.substring(0, s.length - 2));
       }, TIMEOUT);
     });
@@ -222,7 +225,7 @@ TestSession.prototype.sendInspectorCommands = function(commands) {
 };
 
 TestSession.prototype.createCallbackWithTimeout_ = function(message) {
-  var promise = new Promise((resolve) => {
+  const promise = new Promise((resolve) => {
     this.enqueue((callback) => {
       const timeoutId = timeout(message);
       resolve(() => {
@@ -294,7 +297,7 @@ TestSession.prototype.disconnect = function(childDone) {
 
 TestSession.prototype.testHttpResponse = function(path, check) {
   return this.enqueue((callback) =>
-      checkHttpResponse(this.harness_.port, path, (err, response) => {
+      checkHttpResponse(null, this.harness_.port, path, (err, response) => {
         check.call(this, err, response);
         callback();
       }));
@@ -360,12 +363,17 @@ Harness.prototype.enqueue_ = function(task) {
   return this;
 };
 
-Harness.prototype.testHttpResponse = function(path, check) {
+Harness.prototype.testHttpResponse = function(host, path, check, errorcb) {
   return this.enqueue_((doneCallback) => {
-    checkHttpResponse(this.port, path, (err, response) => {
-      check.call(this, err, response);
-      doneCallback();
-    });
+    function wrap(callback) {
+      if (callback) {
+        return function() {
+          callback(...arguments);
+          doneCallback();
+        };
+      }
+    }
+    checkHttpResponse(host, this.port, path, wrap(check), wrap(errorcb));
   });
 };
 
@@ -398,12 +406,12 @@ Harness.prototype.wsHandshake = function(devtoolsUrl, tests, readyCallback) {
       });
     }
     enqueue(tests);
-  }).on('response', () => common.fail('Upgrade was not received'));
+  }).on('response', common.mustNotCall('Upgrade was not received'));
 };
 
 Harness.prototype.runFrontendSession = function(tests) {
   return this.enqueue_((callback) => {
-    checkHttpResponse(this.port, '/json/list', (err, response) => {
+    checkHttpResponse(null, this.port, '/json/list', (err, response) => {
       assert.ifError(err);
       this.wsHandshake(response[0]['webSocketDebuggerUrl'], tests, callback);
     });
@@ -426,9 +434,24 @@ Harness.prototype.expectShutDown = function(errorCode) {
   });
 };
 
-exports.startNodeForInspectorTest = function(callback) {
-  const child = spawn(process.execPath,
-      [ '--inspect', '--debug-brk', mainScript ]);
+Harness.prototype.kill = function() {
+  return this.enqueue_((callback) => {
+    this.process_.kill();
+    callback();
+  });
+};
+
+exports.startNodeForInspectorTest = function(callback,
+                                             inspectorFlag = '--inspect-brk',
+                                             opt_script_contents) {
+  const args = [inspectorFlag];
+  if (opt_script_contents) {
+    args.push('-e', opt_script_contents);
+  } else {
+    args.push(mainScript);
+  }
+
+  const child = spawn(process.execPath, args);
 
   const timeoutId = timeout('Child process did not start properly', 4);
 
@@ -438,7 +461,7 @@ exports.startNodeForInspectorTest = function(callback) {
     clearTimeout(timeoutId);
     console.log('[err]', text);
     if (found) return;
-    const match = text.match(/Debugger listening on port (\d+)/);
+    const match = text.match(/Debugger listening on .*:(\d+)/);
     found = true;
     child.stderr.removeListener('data', dataCallback);
     assert.ok(match, text);

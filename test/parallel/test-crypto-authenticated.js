@@ -1,3 +1,24 @@
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 'use strict';
 const common = require('../common');
 const assert = require('assert');
@@ -312,19 +333,20 @@ const ciphers = crypto.getCiphers();
 for (const i in TEST_CASES) {
   const test = TEST_CASES[i];
 
-  if (ciphers.indexOf(test.algo) === -1) {
+  if (!ciphers.includes(test.algo)) {
     common.skip('unsupported ' + test.algo + ' test');
     continue;
   }
 
   if (common.hasFipsCrypto && test.iv.length < 24) {
-    console.log('1..0 # Skipped: IV len < 12 bytes unsupported in FIPS mode');
+    common.skip('IV len < 12 bytes unsupported in FIPS mode');
     continue;
   }
 
   {
     const encrypt = crypto.createCipheriv(test.algo,
-      Buffer.from(test.key, 'hex'), Buffer.from(test.iv, 'hex'));
+                                          Buffer.from(test.key, 'hex'),
+                                          Buffer.from(test.iv, 'hex'));
     if (test.aad)
       encrypt.setAAD(Buffer.from(test.aad, 'hex'));
 
@@ -342,7 +364,8 @@ for (const i in TEST_CASES) {
 
   {
     const decrypt = crypto.createDecipheriv(test.algo,
-      Buffer.from(test.key, 'hex'), Buffer.from(test.iv, 'hex'));
+                                            Buffer.from(test.key, 'hex'),
+                                            Buffer.from(test.iv, 'hex'));
     decrypt.setAuthTag(Buffer.from(test.tag, 'hex'));
     if (test.aad)
       decrypt.setAAD(Buffer.from(test.aad, 'hex'));
@@ -352,7 +375,7 @@ for (const i in TEST_CASES) {
     let msg = decrypt.update(test.ct, 'hex', outputEncoding);
     if (!test.tampered) {
       msg += decrypt.final(outputEncoding);
-      assert.equal(msg, test.plain);
+      assert.strictEqual(msg, test.plain);
     } else {
       // assert that final throws if input data could not be verified!
       assert.throws(function() { decrypt.final('ascii'); }, / auth/);
@@ -401,7 +424,8 @@ for (const i in TEST_CASES) {
   {
     // trying to get tag before inputting all data:
     const encrypt = crypto.createCipheriv(test.algo,
-      Buffer.from(test.key, 'hex'), Buffer.from(test.iv, 'hex'));
+                                          Buffer.from(test.key, 'hex'),
+                                          Buffer.from(test.iv, 'hex'));
     encrypt.update('blah', 'ascii');
     assert.throws(function() { encrypt.getAuthTag(); }, / state/);
   }
@@ -409,7 +433,8 @@ for (const i in TEST_CASES) {
   {
     // trying to set tag on encryption object:
     const encrypt = crypto.createCipheriv(test.algo,
-      Buffer.from(test.key, 'hex'), Buffer.from(test.iv, 'hex'));
+                                          Buffer.from(test.key, 'hex'),
+                                          Buffer.from(test.iv, 'hex'));
     assert.throws(() => { encrypt.setAuthTag(Buffer.from(test.tag, 'hex')); },
                   / state/);
   }
@@ -417,7 +442,8 @@ for (const i in TEST_CASES) {
   {
     // trying to read tag from decryption object:
     const decrypt = crypto.createDecipheriv(test.algo,
-      Buffer.from(test.key, 'hex'), Buffer.from(test.iv, 'hex'));
+                                            Buffer.from(test.key, 'hex'),
+                                            Buffer.from(test.iv, 'hex'));
     assert.throws(function() { decrypt.getAuthTag(); }, / state/);
   }
 
